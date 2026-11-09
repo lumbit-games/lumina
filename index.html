@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Rotate tiles to carry light from the sun to every crystal. A new puzzle every day, the same for everyone.">
+<meta name="theme-color" content="#0e1424">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lumina">
+<meta property="og:title" content="Lumina: Daily Light Puzzle">
+<meta property="og:description" content="Rotate tiles to carry light from the sun to every crystal. A new puzzle every day.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://lumbit-games.github.io/lumina/">
+<meta property="og:image" content="https://lumbit-games.github.io/lumina/icon-512.png">
+<meta name="twitter:card" content="summary">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Lumina Light Puzzle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Outfit:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column like a phone game screen — header, stats, glowing board, actions. Single night look by choice. */
+:root {
+  --bg: #0e1424;
+  --panel: #161e33;
+  --tile: #1b2540;
+  --tile-hi: #22305299;
+  --pipe: #34415f;
+  --light: #ffc65c;
+  --glow: rgba(255, 198, 92, .55);
+  --gem-off: #2b3a5c;
+  --gem: #8fe6ff;
+  --gem-glow: rgba(143, 230, 255, .6);
+  --fg: #e9edf6;
+  --muted: #8c96b0;
+  --line: #26304a;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  background: radial-gradient(120% 70% at 50% 0%, #1a2444 0%, var(--bg) 60%) var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 16px;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 8px; }
+.icon-btn {
+  width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--panel);
+  color: var(--muted); display: grid; place-items: center; cursor: pointer; padding: 0; font: 600 16px var(--body);
+}
+.icon-btn:hover { color: var(--fg); border-color: var(--pipe); }
+.icon-btn:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; }
+.icon-btn svg { width: 18px; height: 18px; }
+h1 {
+  font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: .02em; margin: 0;
+  background: linear-gradient(180deg, #fff3d6, var(--light)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.meta { text-align: right; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.meta b { color: var(--fg); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+.tabs { display: flex; gap: 6px; background: var(--panel); border-radius: 12px; padding: 4px; }
+.tabs button {
+  flex: 1; border: 0; border-radius: 9px; padding: 9px 8px; background: transparent; color: var(--muted);
+  font: 600 14px var(--body); cursor: pointer;
+}
+.tabs button[aria-pressed="true"] { background: var(--tile); color: var(--fg); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { padding: 8px 4px; text-align: center; }
+.stat span { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.stat strong { font-family: var(--display); font-weight: 500; font-size: 22px; font-variant-numeric: tabular-nums; }
+.hint-line { margin: 0; text-align: center; color: var(--muted); font-size: 14px; }
+.hint-line.on { color: var(--fg); font-size: 16px; line-height: 1.45; min-height: 2.9em; text-wrap: balance; }
+.tile.coach { animation: coach 1.1s ease-in-out infinite; }
+@keyframes coach { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 3px var(--light), 0 0 18px var(--glow); } }
+.board-wrap { display: flex; justify-content: center; }
+.board {
+  --n: 6; --max: 60px; --size: min(var(--max), calc((100vw - 32px - 24px - (var(--n) - 1) * 4px) / var(--n)));
+  display: grid; grid-template-columns: repeat(var(--n), var(--size)); gap: 4px;
+  padding: 12px; background: var(--panel); border-radius: 18px; border: 1px solid var(--line);
+}
+.board.tut { --max: 88px; }
+.tile {
+  width: var(--size); height: var(--size); padding: 0; border: 0; border-radius: 10px;
+  background: var(--tile); cursor: pointer; display: grid; place-items: center;
+}
+.tile:hover { background: var(--tile-hi); }
+.tile:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; }
+/* --d: per-tile delay so new light travels outward from the sun, one step at a time. */
+.tile svg { width: 100%; height: 100%; transition: transform .18s ease-out, filter .25s var(--d, 0s); }
+.pipe { stroke: var(--pipe); stroke-width: 17; transition: stroke .2s var(--d, 0s); }
+.hub { fill: var(--pipe); transition: fill .2s var(--d, 0s); }
+.gem { fill: var(--gem-off); stroke: var(--bg); stroke-width: 4; transition: fill .2s var(--d, 0s); }
+.sun { fill: var(--light); }
+.tile.on .pipe { stroke: var(--light); }
+.tile.on .hub { fill: var(--light); }
+.tile.on svg { filter: drop-shadow(0 0 5px var(--glow)); }
+.tile.on .gem { fill: var(--gem); }
+.tile.crystal.on svg { filter: drop-shadow(0 0 8px var(--gem-glow)); }
+.board.won { animation: pulse 1s ease-out; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--glow); } 100% { box-shadow: 0 0 0 28px transparent; } }
+/* Win: a bright wave rolls out from the sun across the board (--w = distance from the sun). */
+.board.won .tile { animation: flare .6s ease-out var(--w, 0s) both; }
+@keyframes flare { 40% { transform: scale(1.1); background: #3d3622; } }
+.actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 12px;
+  padding: 12px 8px; font: 600 14px var(--body); cursor: pointer;
+}
+.btn:hover { border-color: var(--pipe); }
+.btn:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; }
+.btn.gold { background: var(--light); color: #2a1d00; border-color: var(--light); }
+.btn small { display: block; font-weight: 400; font-size: 11px; opacity: .75; }
+.done-bar {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+}
+.done-bar p { margin: 0; font-size: 14px; min-width: 0; }
+.foot { color: var(--muted); font-size: 12px; text-align: center; line-height: 1.5; margin: 4px 0 0; }
+.overlay {
+  position: fixed; inset: 0; background: rgba(6, 9, 18, .72); display: grid; place-items: center; z-index: 20;
+  padding: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.modal {
+  width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+  padding: 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.modal h2 { font-family: var(--display); font-weight: 500; font-size: 20px; margin: 0; text-wrap: balance; }
+.modal p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 15px; }
+.big { font-family: var(--display); font-size: 30px; color: var(--light); letter-spacing: .1em; }
+.share-box {
+  width: 100%; min-height: 96px; resize: none; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px; font: 14px/1.35 var(--body);
+}
+.modal p.legend { font-size: 13px; margin-top: -6px; }
+.perks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.perks li { display: flex; gap: 10px; font-size: 15px; }
+.perks li::before { content: ""; flex: none; width: 10px; height: 10px; margin-top: 6px; transform: rotate(45deg); background: var(--gem); }
+.price { font-family: var(--display); font-size: 26px; }
+.price small { font-family: var(--body); font-size: 14px; color: var(--muted); }
+.row { display: flex; gap: 8px; }
+.row .btn { flex: 1; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; z-index: 30;
+  max-width: calc(100vw - 32px); text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile svg, .pipe, .hub, .gem { transition: none; }
+  .board.won, .board.won .tile { animation: none; }
+  .tile.coach { animation: none; box-shadow: 0 0 0 3px var(--light); }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Lumina</h1>
+      <button class="icon-btn" id="btn-sound" aria-label="Turn sound off"></button>
+      <button class="icon-btn" id="btn-help" aria-label="How to play">?</button>
+    </div>
+    <div class="meta"><b id="mode-label">Daily #1</b><br><span id="date-label"></span></div>
+  </header>
+
+  <div class="tabs" role="group" aria-label="Game mode">
+    <button id="tab-daily" aria-pressed="true">Daily puzzle</button>
+    <button id="tab-practice" aria-pressed="false">Practice</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span>Moves</span><strong id="s-moves">0</strong></div>
+    <div class="stat"><span>Par</span><strong id="s-par">0</strong></div>
+    <div class="stat"><span>Crystals</span><strong id="s-gems">0/0</strong></div>
+  </div>
+
+  <p class="hint-line" id="coach" aria-live="polite">Tap a tile to rotate it. Carry the light from the sun to every crystal.</p>
+
+  <div id="done" class="done-bar" hidden>
+    <p id="done-text"></p>
+    <button class="btn" id="btn-done-share">Share</button>
+  </div>
+
+  <div class="board-wrap"><div id="board" class="board" role="grid" aria-label="Puzzle board"></div></div>
+
+  <div class="actions">
+    <button class="btn" id="btn-hint">Hint<small>costs 2 moves</small></button>
+    <button class="btn" id="btn-reset">Restart<small>same puzzle</small></button>
+    <button class="btn gold" id="btn-plus">Lumina+<small>coming soon</small></button>
+  </div>
+
+  <p class="foot">A new daily puzzle unlocks at midnight. Monday is easy, the weekend is hard.<br>Made by Lumbit</p>
+</div>
+
+<div class="overlay" id="ov-win" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="win-title">
+    <h2 id="win-title">All crystals lit</h2>
+    <div class="big" id="win-stars"></div>
+    <p id="win-text"></p>
+    <textarea id="share-text" class="share-box" readonly aria-label="Result to share"></textarea>
+    <p class="legend">🟨 perfect · 🟧 extra spins · 🟥 many extra · ⬛ untouched · 🔍 hint</p>
+    <div class="row">
+      <button class="btn gold" id="btn-copy">Copy result</button>
+      <button class="btn" id="btn-next">Practice</button>
+    </div>
+    <p id="win-next"></p>
+  </div>
+</div>
+
+<div class="overlay" id="ov-plus" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="plus-title">
+    <h2 id="plus-title">Lumina+</h2>
+    <ul class="perks">
+      <li>No ads, and hints are free</li>
+      <li>Unlimited practice puzzles</li>
+      <li>Bigger 8×8 boards</li>
+      <li>Archive of every past daily puzzle</li>
+    </ul>
+    <div class="price">Coming soon</div>
+    <p>Until then, enjoy the free daily puzzle and three practice puzzles a day.</p>
+    <button class="btn gold" id="btn-plus-close">Got it</button>
+  </div>
+</div>
+
+<div class="overlay" id="ov-tut" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tut-title">
+    <h2 id="tut-title">You've got it</h2>
+    <p>Light every crystal to solve a puzzle. <b style="color:var(--fg)">Par</b> is the fewest taps possible. Match it for three stars.</p>
+    <p>A new Daily puzzle every day, the same for everyone. Monday is easy, the weekend is hard.</p>
+    <button class="btn gold" id="btn-tut-go">Play today's puzzle</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const N = 1, E = 2, S = 4, W = 8;
+const DIRS = [[N, 0, -1, S], [E, 1, 0, W], [S, 0, 1, N], [W, -1, 0, E]];
+const FREE_PRACTICE = 3;
+// Board size by weekday, Sunday first: easy on Monday, hardest at the weekend.
+const DAILY_SIZE = [7, 5, 5, 6, 6, 6, 7];
+const LEVEL = { 5: "Easy", 6: "Medium", 7: "Hard", 8: "Expert" };
+const LAUNCH = new Date(2026, 10, 9);
+const rot = m => ((m << 1) | (m >> 3)) & 15;
+const rotN = (m, k) => { for (let i = 0; i < k; i++) m = rot(m); return m; };
+const bits = m => (m & 1) + (m >> 1 & 1) + (m >> 2 & 1) + (m >> 3 & 1);
+const $ = id => document.getElementById(id);
+
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash(str) {
+  let h = 2166136261;
+  for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+// Synthesized sound effects (Web Audio): no audio files to load. The context starts on the first tap.
+const sfx = (() => {
+  let ctx = null, muted = store.get("lumina-muted", false);
+  const ac = () => {
+    if (muted) return null;
+    try {
+      ctx ??= new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume();
+    } catch { return null; }
+    return ctx;
+  };
+  function tone(freq, { at = 0, dur = .12, type = "sine", vol = .1, to = 0, attack = .005 } = {}) {
+    const c = ac(); if (!c) return;
+    const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t + dur + .02);
+  }
+  const SCALE = [659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760, 2093];
+  const bell = (f, at = 0, dur = .7, vol = .08) => { tone(f, { at, dur, vol, attack: .01 }); tone(f * 2, { at, dur: dur * .6, vol: vol * .3, attack: .01 }); };
+  return {
+    get muted() { return muted; },
+    toggle() { muted = !muted; store.set("lumina-muted", muted); return muted; },
+    tap(lit) { tone(lit ? 620 : 420, { dur: .07, type: "triangle", vol: .07, to: lit ? 760 : 300 }); },
+    crystal(k) { bell(SCALE[Math.min(k, SCALE.length - 1)]); },
+    win() { [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => bell(f, i * .09, .9, .07)); },
+    hint() { tone(300, { dur: .35, vol: .06, to: 900, attack: .05 }); }
+  };
+})();
+
+function dateKey(d = new Date()) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+const today = dateKey();
+// True on the public website build (build.sh adds the manifest link); false in the private preview.
+const PUBLIC = !!document.querySelector('link[rel="manifest"]');
+const dailyNumber = Math.max(1, Math.round((new Date(new Date().toDateString()) - LAUNCH) / 864e5) + 1);
+
+// Breadth-first from the sun. p[i] = 0 if dark, else 1 + steps from the sun (used for the light cascade).
+function powered(masks, n, src) {
+  const p = new Uint8Array(n * n); p[src] = 1;
+  const q = [src];
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h], x = i % n, y = (i / n) | 0;
+    for (const [b, dx, dy, o] of DIRS) {
+      if (!(masks[i] & b)) continue;
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
+      const j = ny * n + nx;
+      if (p[j] || !(masks[j] & o)) continue;
+      p[j] = p[i] + 1; q.push(j);
+    }
+  }
+  return p;
+}
+
+// Grow a random spanning tree from the sun; its dead ends become crystals, then scramble every tile.
+function generate(n, seed) {
+  const rng = mulberry32(seed);
+  const sol = new Array(n * n).fill(0);
+  const src = Math.floor(n / 2) * n + Math.floor((n - 1) / 2);
+  const seen = new Set([src]);
+  const frontier = [];
+  const grow = i => {
+    const x = i % n, y = (i / n) | 0;
+    for (const [b, dx, dy, o] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < n && ny < n) frontier.push([i, ny * n + nx, b, o]);
+    }
+  };
+  grow(src);
+  while (seen.size < n * n) {
+    const [a, b, ba, bb] = frontier.splice(Math.floor(rng() * frontier.length), 1)[0];
+    if (seen.has(b)) continue;
+    if (bits(sol[a]) >= 3 && rng() < 0.8) { frontier.push([a, b, ba, bb]); continue; }
+    sol[a] |= ba; sol[b] |= bb; seen.add(b); grow(b);
+  }
+  const crystals = sol.map((m, i) => (bits(m) === 1 && i !== src ? i : -1)).filter(i => i >= 0);
+  let base;
+  do {
+    base = sol.map(m => rotN(m, Math.floor(rng() * 4)));
+  } while (crystals.every(c => powered(base, n, src)[c]));
+  const par = base.reduce((sum, m, i) => {
+    for (let k = 0; k < 4; k++) if (rotN(m, k) === sol[i]) return sum + k;
+    return sum;
+  }, 0);
+  return { n, sol, base, src, crystals, par };
+}
+
+let premium = false;
+let state = null;
+
+function newGame(mode, seedOverride) {
+  let n, seed;
+  if (mode === "daily") { n = DAILY_SIZE[new Date().getDay()]; seed = hash("lumina-" + today); }
+  else {
+    const played = store.get("lumina-practice-" + today, 0);
+    n = premium ? 8 : 5 + (played % 2);
+    seed = seedOverride ?? Math.floor(Math.random() * 2 ** 31);
+  }
+  const p = generate(n, seed);
+  state = { mode, seed, ...p, turns: new Array(n * n).fill(0), moves: 0, hints: 0, won: false };
+  const result = store.get("lumina-daily-" + today, null);
+  if (mode === "daily" && result) {
+    state.turns = p.base.map((m, i) => { for (let k = 0; k < 4; k++) if (rotN(m, k) === p.sol[i]) return k; return 0; });
+    state.moves = result.moves; state.hints = result.hints; state.won = true; state.grid = result.grid;
+  }
+  build();
+}
+
+const masks = () => state.base.map((m, i) => rotN(m, state.turns[i] % 4));
+
+function tileSVG(mask, kind) {
+  const ends = { 1: [50, 0], 2: [100, 50], 4: [50, 100], 8: [0, 50] };
+  let s = '<svg viewBox="0 0 100 100" aria-hidden="true">';
+  for (const b of [1, 2, 4, 8]) if (mask & b) s += `<line class="pipe" x1="50" y1="50" x2="${ends[b][0]}" y2="${ends[b][1]}"/>`;
+  s += '<circle class="hub" cx="50" cy="50" r="8.5"/>';
+  if (kind === "crystal") s += '<polygon class="gem" points="50,22 74,50 50,78 26,50"/>';
+  if (kind === "src") {
+    s += '<circle class="sun" cx="50" cy="50" r="19"/>';
+    for (let a = 0; a < 8; a++) {
+      const r = a * Math.PI / 4, x1 = 50 + Math.cos(r) * 25, y1 = 50 + Math.sin(r) * 25, x2 = 50 + Math.cos(r) * 33, y2 = 50 + Math.sin(r) * 33;
+      s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--light)" stroke-width="5" stroke-linecap="round"/>`;
+    }
+  }
+  return s + "</svg>";
+}
+
+function build() {
+  const board = $("board");
+  board.style.setProperty("--n", state.n);
+  board.classList.remove("won");
+  board.classList.toggle("tut", state.mode === "tutorial");
+  board.innerHTML = "";
+  state.base.forEach((m, i) => {
+    const kind = i === state.src ? "src" : state.crystals.includes(i) ? "crystal" : "pipe";
+    const b = document.createElement("button");
+    b.className = "tile " + kind;
+    b.id = "t" + i;
+    b.setAttribute("aria-label", `${kind === "src" ? "Sun" : kind === "crystal" ? "Crystal" : "Pipe"}, row ${Math.floor(i / state.n) + 1}, column ${i % state.n + 1}`);
+    b.innerHTML = tileSVG(m, kind);
+    b.addEventListener("click", () => tap(i));
+    board.appendChild(b);
+  });
+  $("tab-daily").setAttribute("aria-pressed", state.mode === "daily");
+  $("tab-practice").setAttribute("aria-pressed", state.mode === "practice");
+  $("mode-label").textContent = state.mode === "daily" ? `Daily #${dailyNumber} · ${LEVEL[state.n]}`
+    : state.mode === "tutorial" ? "Tutorial" :`Practice ${state.n}×${state.n}`;
+  render();
+}
+
+// Light cascade: tiles that just became lit get a delay by their distance from the sun, so light visibly
+// flows outward after the tapped tile finishes turning. `arrive` = when the last newly lit crystal lights up (ms).
+const STEP_MS = 45, TURN_MS = 120;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let arrive = 0;
+
+function render() {
+  const p = powered(masks(), state.n, state.src);
+  const fresh = state.base.map((_, i) => p[i] && !$("t" + i).classList.contains("on") ? i : -1).filter(i => i >= 0);
+  const minD = fresh.length ? Math.min(...fresh.map(i => p[i])) : 0;
+  arrive = 0;
+  state.base.forEach((_, i) => {
+    const t = $("t" + i), on = !!p[i], was = t.classList.contains("on");
+    if (on && !was) {
+      const d = reduceMotion ? 0 : TURN_MS + (p[i] - minD) * STEP_MS;
+      t.style.setProperty("--d", d + "ms");
+      if (state.crystals.includes(i)) arrive = Math.max(arrive, d);
+    } else if (!on && was) t.style.setProperty("--d", "0ms");
+    if (on) t.style.setProperty("--w", Math.min((p[i] - 1) * 40, 700) + "ms");
+    t.classList.toggle("on", on);
+    t.firstChild.style.transform = `rotate(${state.turns[i] * 90}deg)`;
+  });
+  const lit = state.crystals.filter(c => p[c]).length;
+  state.lit = lit;
+  coach();
+  $("s-moves").textContent = state.moves;
+  $("s-par").textContent = state.par;
+  $("s-gems").textContent = `${lit}/${state.crystals.length}`;
+  const result = state.mode === "daily" && store.get("lumina-daily-" + today, null);
+  $("done").hidden = !result;
+  if (result) $("done-text").textContent = `Solved today in ${result.moves} moves. Streak: ${store.get("lumina-streak", { n: 1 }).n} day(s).`;
+  return lit === state.crystals.length;
+}
+
+function tap(i) {
+  if (state.won) { toast(state.mode === "daily" ? "Today's puzzle is solved. Try Practice." : "Solved. Start a new practice puzzle."); return; }
+  state.turns[i]++;
+  state.moves++;
+  afterChange(() => sfx.tap($("t" + i).classList.contains("on")));
+}
+
+// Re-render after a move; chime when the light actually reaches a new crystal, else play the move sound.
+function afterChange(moveSound) {
+  const before = state.lit ?? 0;
+  if (render()) return win();
+  if (state.lit > before) { const k = state.lit - 1; setTimeout(() => sfx.crystal(k), arrive); }
+  else moveSound();
+}
+
+// The tile a hint (or the tutorial coach) should point at: a wrong tile already reached by light, else any wrong tile.
+function nextWrong() {
+  const cur = masks();
+  const wrong = cur.map((m, i) => (m !== state.sol[i] ? i : -1)).filter(i => i >= 0);
+  if (!wrong.length) return -1;
+  const p = powered(cur, state.n, state.src);
+  return wrong.find(j => p[j]) ?? wrong[0];
+}
+
+// Tutorial: a solved 3×3 board with two crystals turned away (one needs 1 tap, the other 2). The coach pulses the next tile.
+const DEFAULT_COACH = "Tap a tile to rotate it. Carry the light from the sun to every crystal.";
+function startTutorial() {
+  let p, seed = 1;
+  do p = generate(3, seed++); while (p.crystals.length !== 3 && seed < 500);
+  const [a, b] = p.crystals;
+  const base = p.sol.slice();
+  base[a] = rotN(p.sol[a], 3); base[b] = rotN(p.sol[b], 2);
+  state = { mode: "tutorial", seed: 0, ...p, base, par: 3, turns: new Array(9).fill(0), moves: 0, hints: 0, won: false, tut: [a, b] };
+  document.querySelectorAll(".overlay").forEach(o => (o.hidden = true));
+  build();
+}
+
+function coach() {
+  document.querySelectorAll(".tile.coach").forEach(t => t.classList.remove("coach"));
+  const line = $("coach");
+  const on = state.mode === "tutorial";
+  line.classList.toggle("on", on);
+  if (!on) { line.textContent = DEFAULT_COACH; return; }
+  if (state.lit === state.crystals.length) { line.textContent = "Every crystal is glowing. Puzzle solved!"; return; }
+  const i = nextWrong();
+  if (i < 0) return;
+  $("t" + i).classList.add("coach");
+  const [a, b] = state.tut;
+  line.textContent =
+    i === a ? "The sun sends light through connected pipes. Tap the glowing tile to turn it toward the light." :
+    i === b && state.turns[b] % 4 === 0 ? "Nice! Each tap turns a tile a quarter turn clockwise. This crystal needs two taps." :
+    i === b ? "One more tap and the light reaches it." :
+    "Oops, that tile was already right. Keep tapping it until the light flows again.";
+}
+
+function stars() {
+  const effective = state.moves + state.hints * 2;
+  return effective <= state.par ? 3 : effective <= state.par * 1.5 ? 2 : 1;
+}
+
+function win() {
+  state.won = true;
+  const a = arrive;
+  // Wait for the light to reach the last crystal, then the wave + fanfare, then the result.
+  setTimeout(() => { $("board").classList.add("won"); sfx.win(); }, a + 80);
+  if (state.mode === "tutorial") {
+    store.set("lumina-tut", true);
+    render();
+    setTimeout(() => ($("ov-tut").hidden = false), a + 1200);
+    return;
+  }
+  state.grid = shareGrid();
+  const st = stars();
+  if (state.mode === "daily") {
+    store.set("lumina-daily-" + today, { moves: state.moves, hints: state.hints, stars: st, grid: state.grid });
+    const streak = store.get("lumina-streak", { n: 0, last: null });
+    const yesterday = dateKey(new Date(Date.now() - 864e5));
+    if (streak.last !== today) store.set("lumina-streak", { n: streak.last === yesterday ? streak.n + 1 : 1, last: today });
+  }
+  render();
+  setTimeout(() => openWin(), a + 1200);
+}
+
+// Spoiler-free picture of how you solved it: one square per tile, by how efficiently you turned it.
+function shareGrid() {
+  const hinted = state.hinted ?? [], rows = [];
+  for (let y = 0; y < state.n; y++) {
+    let r = "";
+    for (let x = 0; x < state.n; x++) {
+      const i = y * state.n + x;
+      let k = 0; while (k < 4 && rotN(state.base[i], k) !== state.sol[i]) k++;
+      const extra = state.turns[i] - k;
+      r += i === state.src ? "☀️" : hinted.includes(i) ? "🔍" : state.turns[i] === 0 ? "⬛" : extra <= 0 ? "🟨" : extra <= 4 ? "🟧" : "🟥";
+    }
+    rows.push(r);
+  }
+  return rows.join("\n");
+}
+
+function shareText() {
+  const st = state.won ? stars() : 0;
+  const head = state.mode === "daily" ? `Lumina Daily #${dailyNumber} (${LEVEL[state.n]})` : `Lumina Practice ${state.n}×${state.n}`;
+  const grid = state.grid ?? (state.won ? shareGrid() : "");
+  return `${head} 💡\n${"⭐".repeat(st)}${"▫️".repeat(3 - st)} ${state.moves} moves · par ${state.par}` +
+    (state.hints ? ` · 🔍${state.hints}` : "") + (grid ? "\n\n" + grid : "") + (PUBLIC ? "\n\n" + location.host + location.pathname.replace(/index\.html$/, "") : "");
+}
+
+function openWin() {
+  const st = stars();
+  $("win-stars").textContent = "★".repeat(st) + "☆".repeat(3 - st);
+  $("win-text").textContent = state.moves <= state.par
+    ? `${state.moves} moves. You matched par. Excellent.`
+    : `${state.moves} moves. Par is ${state.par}. Can you do it in fewer tomorrow?`;
+  const text = shareText();
+  $("share-text").value = text;
+  $("share-text").rows = text.split("\n").length;
+  $("btn-next").textContent = state.mode === "daily" ? "Practice" : "Next puzzle";
+  updateCountdown();
+  $("ov-win").hidden = false;
+}
+
+function updateCountdown() {
+  const now = new Date(), mid = new Date(now); mid.setHours(24, 0, 0, 0);
+  const s = Math.floor((mid - now) / 1000);
+  $("win-next").textContent = `Next daily puzzle in ${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`;
+}
+
+async function copyShare() {
+  const text = shareText();
+  try { await navigator.clipboard.writeText(text); toast("Copied. Paste it to your friends."); }
+  catch { const box = $("share-text"); box.value = text; box.focus(); box.select(); toast("Select and copy the text above"); }
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2200);
+}
+
+function applyHint() {
+  const i = nextWrong();
+  if (i < 0) return;
+  const cur = masks()[i];
+  let k = 0; while (rotN(cur, k) !== state.sol[i]) k++;
+  state.turns[i] += k;
+  state.hints++;
+  state.hinted = [...(state.hinted ?? []), i];
+  $("t" + i).focus();
+  afterChange(() => sfx.hint());
+}
+
+// Hints are free for now (each costs 2 moves toward the stars). A rewarded ad can be added here later.
+function openHint() {
+  if (state.won) return;
+  applyHint();
+}
+
+function startPractice() {
+  const played = store.get("lumina-practice-" + today, 0);
+  if (!premium && played >= FREE_PRACTICE) { $("ov-plus").hidden = false; toast(`You used today's ${FREE_PRACTICE} free practice puzzles`); return; }
+  store.set("lumina-practice-" + today, played + 1);
+  newGame("practice");
+}
+
+$("tab-daily").onclick = () => newGame("daily");
+$("tab-practice").onclick = () => { if (state.mode !== "practice") startPractice(); };
+$("btn-reset").onclick = () => {
+  if (state.mode === "daily" && state.won) { toast("Today's puzzle is solved. Come back tomorrow."); return; }
+  state.turns.fill(0); state.moves = 0; state.hints = 0; state.hinted = []; state.grid = undefined; state.won = false; build();
+};
+$("btn-hint").onclick = openHint;
+$("btn-plus").onclick = () => ($("ov-plus").hidden = false);
+$("btn-plus-close").onclick = () => ($("ov-plus").hidden = true);
+const SPEAKER = '<path d="M4 9h4l5-4v14l-5-4H4z"/>';
+function paintSound() {
+  const b = $("btn-sound");
+  b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPEAKER}` +
+    (sfx.muted ? '<path d="M17 9.5l5 5M22 9.5l-5 5"/>' : '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>') + "</svg>";
+  b.setAttribute("aria-label", sfx.muted ? "Turn sound on" : "Turn sound off");
+}
+$("btn-sound").onclick = () => { sfx.toggle(); paintSound(); sfx.tap(true); toast(sfx.muted ? "Sound off" : "Sound on"); };
+$("btn-help").onclick = startTutorial;
+$("btn-tut-go").onclick = () => { $("ov-tut").hidden = true; newGame("daily"); };
+paintSound();
+$("btn-copy").onclick = copyShare;
+$("btn-done-share").onclick = copyShare;
+$("btn-next").onclick = () => { $("ov-win").hidden = true; startPractice(); };
+$("ov-win").addEventListener("click", e => { if (e.target.id === "ov-win") $("ov-win").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => (o.hidden = true)); });
+
+$("date-label").textContent = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+function start(data) {
+  if (data && data.state) { state = data.state; premium = !!data.premium; build(); }
+  else if (!store.get("lumina-tut", false) && !store.get("lumina-daily-" + today, null)) startTutorial();
+  else newGame("daily");
+}
+if (PUBLIC && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+start({});
+</script>

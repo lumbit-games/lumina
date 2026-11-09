@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#1f2b50"/>
+      <stop offset="1" stop-color="#0e1424"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g filter="url(#glow)">
+    <line x1="196" y1="256" x2="352" y2="256" stroke="#ffc65c" stroke-width="44"/>
+    <circle cx="196" cy="256" r="58" fill="#ffc65c"/>
+    <g stroke="#ffc65c" stroke-width="14" stroke-linecap="round">
+      <line x1="196" y1="168" x2="196" y2="146"/>
+      <line x1="196" y1="344" x2="196" y2="366"/>
+      <line x1="108" y1="256" x2="86" y2="256"/>
+      <line x1="134" y1="194" x2="118" y2="178"/>
+      <line x1="134" y1="318" x2="118" y2="334"/>
+      <line x1="258" y1="194" x2="274" y2="178"/>
+      <line x1="258" y1="318" x2="274" y2="334"/>
+    </g>
+    <polygon points="360,186 430,256 360,326 290,256" fill="#8fe6ff" stroke="#0e1424" stroke-width="10"/>
+  </g>
+</svg>
