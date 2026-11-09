@@ -1,6 +1,8 @@
-// Offline support: serve from cache first, refresh the cache in the background.
-// A new version of the game reaches players on their next visit. Bump CACHE when the file list changes.
-const CACHE = "lumina-v1";
+// Offline support. The page: network first, cache when offline. Other files: cache first, refreshed in
+// the background. Bump CACHE when the file list changes.
+const CACHE = "lumina-v3";
+// Only our own files and Google Fonts are cached. Everything else (analytics counts) goes straight to the network.
+const CACHEABLE = [self.location.origin, "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon-32.png"];
 
 self.addEventListener("install", e => {
@@ -17,7 +19,14 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  if (e.request.method !== "GET") return;
+  if (e.request.method !== "GET" || !CACHEABLE.includes(new URL(e.request.url).origin)) return;
+  // The page itself: network first so players get updates at once; the cached copy is the offline fallback.
+  if (e.request.mode === "navigate") {
+    e.respondWith(caches.open(CACHE).then(cache => fetch(e.request)
+      .then(res => { if (res.ok) cache.put("./", res.clone()); return res; })
+      .catch(() => cache.match("./"))));
+    return;
+  }
   e.respondWith(caches.open(CACHE).then(async cache => {
     const hit = await cache.match(e.request, { ignoreSearch: true });
     const fresh = fetch(e.request)

@@ -312,6 +312,30 @@ function dateKey(d = new Date()) {
 const today = dateKey();
 // True on the public website build (build.sh adds the manifest link); false in the private preview.
 const PUBLIC = !!document.querySelector('link[rel="manifest"]');
+
+// Analytics (public site only): GoatCounter, no cookies, no personal data. Page views are counted
+// automatically; track() records events such as "daily-solved". Dashboard: https://lumbit.goatcounter.com
+const pendingEvents = [];
+function track(name) {
+  if (!PUBLIC) return;
+  try {
+    const gc = window.goatcounter;
+    if (gc && gc.count) gc.count({ path: name, title: name, event: true });
+    else pendingEvents.push(name);
+  } catch {}
+}
+if (PUBLIC) {
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = "https://gc.zgo.at/count.js";
+  s.dataset.goatcounter = "https://lumbit.goatcounter.com/count";
+  s.onload = () => pendingEvents.splice(0).forEach(track);
+  document.head.appendChild(s);
+  // Retention signal: a visit on a later day than the last one.
+  const last = store.get("lumina-last-visit", null);
+  if (last && last !== today) track("returning-visit");
+  store.set("lumina-last-visit", today);
+}
 const dailyNumber = Math.max(1, Math.round((new Date(new Date().toDateString()) - LAUNCH) / 864e5) + 1);
 
 // Breadth-first from the sun. p[i] = 0 if dark, else 1 + steps from the sun (used for the light cascade).
@@ -528,6 +552,7 @@ function win() {
   setTimeout(() => { $("board").classList.add("won"); sfx.win(); }, a + 80);
   if (state.mode === "tutorial") {
     store.set("lumina-tut", true);
+    track("tutorial-done");
     render();
     setTimeout(() => ($("ov-tut").hidden = false), a + 1200);
     return;
@@ -536,10 +561,15 @@ function win() {
   const st = stars();
   if (state.mode === "daily") {
     store.set("lumina-daily-" + today, { moves: state.moves, hints: state.hints, stars: st, grid: state.grid });
+    track("daily-solved");
     const streak = store.get("lumina-streak", { n: 0, last: null });
     const yesterday = dateKey(new Date(Date.now() - 864e5));
-    if (streak.last !== today) store.set("lumina-streak", { n: streak.last === yesterday ? streak.n + 1 : 1, last: today });
-  }
+    if (streak.last !== today) {
+      const n = streak.last === yesterday ? streak.n + 1 : 1;
+      store.set("lumina-streak", { n, last: today });
+      if (n >= 2) track("daily-streak-2plus");
+    }
+  } else track("practice-solved");
   render();
   setTimeout(() => openWin(), a + 1200);
 }
@@ -590,6 +620,7 @@ function updateCountdown() {
 
 async function copyShare() {
   const text = shareText();
+  track("share-copy");
   try { await navigator.clipboard.writeText(text); toast("Copied. Paste it to your friends."); }
   catch { const box = $("share-text"); box.value = text; box.focus(); box.select(); toast("Select and copy the text above"); }
 }
@@ -620,7 +651,7 @@ function openHint() {
 
 function startPractice() {
   const played = store.get("lumina-practice-" + today, 0);
-  if (!premium && played >= FREE_PRACTICE) { $("ov-plus").hidden = false; toast(`You used today's ${FREE_PRACTICE} free practice puzzles`); return; }
+  if (!premium && played >= FREE_PRACTICE) { track("practice-limit"); $("ov-plus").hidden = false; toast(`You used today's ${FREE_PRACTICE} free practice puzzles`); return; }
   store.set("lumina-practice-" + today, played + 1);
   newGame("practice");
 }
@@ -632,7 +663,7 @@ $("btn-reset").onclick = () => {
   state.turns.fill(0); state.moves = 0; state.hints = 0; state.hinted = []; state.grid = undefined; state.won = false; build();
 };
 $("btn-hint").onclick = openHint;
-$("btn-plus").onclick = () => ($("ov-plus").hidden = false);
+$("btn-plus").onclick = () => { track("plus-open"); $("ov-plus").hidden = false; };
 $("btn-plus-close").onclick = () => ($("ov-plus").hidden = true);
 const SPEAKER = '<path d="M4 9h4l5-4v14l-5-4H4z"/>';
 function paintSound() {
